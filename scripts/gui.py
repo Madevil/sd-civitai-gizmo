@@ -1,7 +1,14 @@
+import os
 import gradio as gr
 import json
 import requests
-from modules import script_callbacks
+from modules import hashes, script_callbacks, shared
+from modules.paths_internal import models_path, data_path
+import importlib
+
+available_lora_hash_lookup = None
+lora_base = None
+lyco_base = None
 
 def request_civit_api(api_url):
     try:
@@ -59,6 +66,32 @@ def on_ui_tabs():
             _version_json = ""
             _model_json = ""
             if sterm and stype in _base_url.keys():
+
+                if stype == "Hash" and len(sterm) == 12 and len(available_lora_hash_lookup) > 0:
+                    _found = None
+
+                    for _key, _val in available_lora_hash_lookup.items():
+                        if _key == sterm:
+                            _found = _val #network.NetworkOnDisk
+                            print(f"{_val.name} found via shorthash: {sterm}")
+                            break
+
+                    if _found:
+                        _title = None
+                        if _found.filename.find(lora_base) == 0:
+                            _title = "lora/" + os.path.relpath(os.path.splitext(_found.filename)[0], lora_base).replace("/", "\\")
+                        elif _found.filename.find(lyco_base) == 0:
+                            _title = "locon/" + os.path.relpath(os.path.splitext(_found.filename)[0], lyco_base).replace("/", "\\")
+                        else:
+                            print(f"cannot determine lora type from filename: {_found.filename}")
+
+                        if _title:
+                            _sha256 = hashes.sha256(_found.filename, _title, False) #don't use addnet hash
+                            if _sha256:
+                                sterm = _sha256[:10]
+                            else:
+                                print(f"failed to get sha256 from {_found.filename}")
+
                 _version_data = request_civit_api(_base_url[stype] + sterm)
                 if type(_version_data) is dict and "id" in _version_data.keys() and "modelId" in _version_data.keys():
                     _version_json = json.dumps(_version_data, indent=4, ensure_ascii=False)
@@ -113,3 +146,22 @@ def on_ui_tabs():
     return (_gr_block, "Gizmo", "civitai_gizmo"),
 
 script_callbacks.on_ui_tabs(on_ui_tabs)
+
+def on_app_started(block, fastapi):
+
+    global lora_base
+    lora_base = os.path.join(data_path, models_path, "Lora")
+    if shared.cmd_opts.lora_dir and os.path.isdir(shared.cmd_opts.lora_dir):
+        lora_base = shared.cmd_opts.lora_dir
+
+    global lyco_base
+    lyco_base = os.path.join(data_path, models_path, "LyCORIS")
+    if shared.cmd_opts.lyco_dir and os.path.isdir(shared.cmd_opts.lyco_dir):
+        lyco_base = shared.cmd_opts.lyco_dir
+
+    global available_lora_hash_lookup
+    if importlib.find_loader("lora") is not None:
+        lora = importlib.import_module("lora")
+        available_lora_hash_lookup = lora.available_lora_hash_lookup
+
+script_callbacks.on_app_started(on_app_started)

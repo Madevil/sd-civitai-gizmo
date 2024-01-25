@@ -78,9 +78,9 @@ def on_ui_tabs():
 
                     if _found:
                         _title = None
-                        if _found.filename.find(lora_base) == 0:
+                        if _found.filename.startswith(lora_base):
                             _title = "lora/" + os.path.relpath(os.path.splitext(_found.filename)[0], lora_base).replace("/", "\\")
-                        elif _found.filename.find(lyco_base) == 0:
+                        elif _found.filename.startswith(lyco_base):
                             _title = "locon/" + os.path.relpath(os.path.splitext(_found.filename)[0], lyco_base).replace("/", "\\")
                         else:
                             print(f"cannot determine lora type from filename: {_found.filename}")
@@ -150,14 +150,10 @@ script_callbacks.on_ui_tabs(on_ui_tabs)
 def on_app_started(block, fastapi):
 
     global lora_base
-    lora_base = os.path.join(data_path, models_path, "Lora")
-    if shared.cmd_opts.lora_dir and os.path.isdir(shared.cmd_opts.lora_dir):
-        lora_base = shared.cmd_opts.lora_dir
+    lora_base = get_lora_dir()
 
     global lyco_base
-    lyco_base = os.path.join(data_path, models_path, "LyCORIS")
-    if shared.cmd_opts.lyco_dir and os.path.isdir(shared.cmd_opts.lyco_dir):
-        lyco_base = shared.cmd_opts.lyco_dir
+    lyco_base = get_locon_dir()
 
     global available_lora_hash_lookup
     if importlib.find_loader("lora") is not None:
@@ -165,3 +161,17 @@ def on_app_started(block, fastapi):
         available_lora_hash_lookup = lora.available_lora_hash_lookup
 
 script_callbacks.on_app_started(on_app_started)
+
+def get_lora_dir():
+    lora_dir = shared.opts.data.get('civitai_folder_lora', shared.cmd_opts.lora_dir).strip()
+    if not lora_dir: lora_dir = shared.cmd_opts.lora_dir
+    return lora_dir
+
+def get_locon_dir():
+    try:
+        lyco_dir = shared.opts.data.get('civitai_folder_lyco', shared.cmd_opts.lyco_dir).strip()
+        if not lyco_dir: lyco_dir = shared.cmd_opts.lyco_dir
+        if not lyco_dir: lyco_dir = os.path.join(models_path, "LyCORIS"),
+        return lyco_dir
+    except:
+        return get_lora_dir()

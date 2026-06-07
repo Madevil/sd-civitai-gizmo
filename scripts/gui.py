@@ -1,8 +1,7 @@
-import os
 import gradio as gr
 import json
 import requests
-from modules import script_callbacks
+from modules import options, script_callbacks, shared
 
 def request_civit_api(api_url):
     try:
@@ -72,7 +71,19 @@ def on_ui_tabs():
                         _html += f'{_model_data["name"]} ({_version_data["name"]})<br/><br/>'
                         _model_json = json.dumps(_model_data, indent=4, ensure_ascii=False)
 
-                    _civitai_url = f'https://civitai.com/models/{_model_id}?modelVersionId={_version_id}'
+                        """
+                        _nsfw_level = 0
+                        if "nsfwLevel" in _version_data.keys():
+                            _nsfw_level : int = _version_data["nsfwLevel"]
+                        _html += f'nsfwLevel: {_nsfw_level}<br/><br/>'
+                        """
+
+                    _civitai_url = 'https://civitai'
+                    if getattr(shared.opts, "gizmo_nsfw_domain", True):
+                        _civitai_url += '.red'
+                    else:
+                        _civitai_url += '.com'
+                    _civitai_url += f'/models/{_model_id}?modelVersionId={_version_id}'
                     _html += f'link: <a href="{_civitai_url}" target="_blank" id="ext_gizmo_result_link">{_civitai_url}</a><br/>'
 
                 else:
@@ -115,3 +126,17 @@ def on_ui_tabs():
     return (_gr_block, "Gizmo", "civitai_gizmo"),
 
 script_callbacks.on_ui_tabs(on_ui_tabs)
+
+def on_ui_settings():
+    if (hasattr(options, "categories")):
+        options.categories.register_category("gizmo", "Gizmo")
+
+    if not (hasattr(shared.OptionInfo, "info") and callable(getattr(shared.OptionInfo, "info"))):
+        def info(self, info):
+            self.label += f" ({info})"
+            return self
+        shared.OptionInfo.info = info
+
+    shared.opts.add_option("gizmo_nsfw_domain", shared.OptionInfo(True, "NSFW domain", section=("gizmo_nsfw", "NSFW"), category_id="gizmo").info("use Civitai.red domain as default"))
+
+script_callbacks.on_ui_settings(on_ui_settings)
